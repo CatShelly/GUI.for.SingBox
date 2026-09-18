@@ -259,5 +259,7 @@ export const getCommands = () => {
     },
   ]
 
-  return processCommands(rawCommands)
+  return processCommands(rawCommands.filter((c) => c.cmd !== 'System Proxy')).filter(
+    (c) => !/Restart APP|Exit APP/.test(c.cmd),
+  )
 }

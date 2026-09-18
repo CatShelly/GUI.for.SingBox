@@ -300,25 +300,22 @@ defineExpose({ handleCancel })
         :class="{ 'is-side': isSide }"
         :style="{ zIndex: modalZindex }"
         class="gui-modal-mask fixed inset-0 flex items-center justify-center backdrop-blur-sm"
-        style="--wails-draggable: drag"
         @click.self="onMaskClick"
       >
         <div
           :style="contentStyle"
           :class="props.class"
           class="gui-modal-modal transition duration-200 flex flex-col rounded-8 shadow"
-          style="--wails-draggable: false"
         >
           <div
             v-if="title || slots.title || slots.toolbar"
             class="gui-modal-header flex items-center p-16"
-            style="--wails-draggable: drag"
             @dblclick.self="!isSide && toggleMaximize()"
           >
             <slot name="title">
               <div v-if="title" class="font-bold">{{ $t(title) }}</div>
             </slot>
-            <div class="ml-auto" style="--wails-draggable: false">
+            <div class="ml-auto">
               <slot name="toolbar"></slot>
               <Button
                 v-if="tabEligible"

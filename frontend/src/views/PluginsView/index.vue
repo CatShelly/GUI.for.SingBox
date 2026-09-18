@@ -40,8 +40,8 @@ const menuList: App.Menu[] = [
 ]
 
 const { t } = useI18n()
-
 const envStore = useEnvStore()
+
 const pluginsStore = usePluginsStore()
 const appSettingsStore = useAppSettingsStore()
 

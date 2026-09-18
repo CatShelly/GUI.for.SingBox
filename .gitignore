@@ -2,3 +2,11 @@ build/bin
 frontend/dist
 
 .DS_Store
+
+/data/
+/.webui-smoke/
+/build/webui.exe
+/dist/
+/.cache/
+/docs/webui-migration-plan.md
+/docs/webui-v1-validation.md

@@ -4,7 +4,6 @@ import HomeView from '@/views/HomeView/index.vue'
 import PluginsView from '@/views/PluginsView/index.vue'
 import ProfilesView from '@/views/ProfilesView/index.vue'
 import RulesetsView from '@/views/RulesetsView/index.vue'
-import ScheduledTasksView from '@/views/ScheduledTasksView/index.vue'
 import SettingsView from '@/views/SettingsView/index.vue'
 import SubscribesView from '@/views/SubscribesView/index.vue'
 
@@ -52,15 +51,6 @@ const routes: RouteRecordRaw[] = [
     meta: {
       name: 'router.plugins',
       icon: 'plugins',
-    },
-  },
-  {
-    path: '/scheduledtasks',
-    name: 'ScheduledTasks',
-    component: ScheduledTasksView,
-    meta: {
-      name: 'router.scheduledtasks',
-      icon: 'scheduledTasks',
     },
   },
   {

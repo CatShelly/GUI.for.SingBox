@@ -15,10 +15,7 @@ interface Props {
 
 const props = defineProps<Props>()
 
-const tabs = [
-  { tab: 'settings.kernel.config.env', key: 'env' },
-  { tab: 'settings.kernel.config.args', key: 'args' },
-]
+const tabs = [{ tab: 'settings.kernel.config.env', key: 'env' }]
 
 const activeKey = ref('env')
 const handleCancel = inject('cancel') as any

@@ -62,24 +62,13 @@ const resolveController = (controller: string, defaultPort: number) => {
 }
 
 const setupCoreApi = (protocol: 'http' | 'ws') => {
-  const { currentProfile: profile } = useProfilesStore()
-
-  let base = `${protocol}://127.0.0.1:20123`
-  let bearer = ''
-
-  if (profile) {
-    const controller = profile.experimental.clash_api.external_controller || '127.0.0.1:20123'
-    const { host, port } = resolveController(controller, 20123)
-    base = `${protocol}://${formatProxyHost(host)}:${port}`
-    bearer = profile.experimental.clash_api.secret
-  }
-
   if (protocol === 'http') {
-    request.base = base
-    request.bearer = bearer
+    request.base = '/api/core/proxy'
+    request.bearer = ''
   } else {
-    websocket.base = base
-    websocket.bearer = bearer
+    websocket.base =
+      (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/api/core/proxy'
+    websocket.bearer = ''
   }
 }
 

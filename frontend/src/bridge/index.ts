@@ -1,4 +1,4 @@
-export * from '@wails/runtime/runtime'
+export * from '@/bridge/runtime'
 export * from './io'
 export * from './net'
 export * from './exec'

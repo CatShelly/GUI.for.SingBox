@@ -39,6 +39,7 @@ export class Request {
 
     const init: RequestInit = {
       method: options.method,
+      headers: { 'X-WebUI-Request': '1', 'Content-Type': 'application/json' },
       signal: AbortSignal.timeout(this.timeout),
     }
 

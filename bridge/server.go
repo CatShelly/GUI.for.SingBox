@@ -17,7 +17,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/wailsapp/wails/v2/pkg/runtime"
+	runtime "guiforcores/internal/events"
 )
 
 var requestCounter atomic.Uint64

@@ -13,18 +13,7 @@ export const useScheduledTasksStore = defineStore('scheduledtasks', () => {
   const scheduledtasks = ref<App.ScheduledTask[]>([])
   const cronJobsMap: Recordable<Cron> = {}
 
-  const setupScheduledTasks = async () => {
-    const data = await ignoredError(ReadFile, ScheduledTasksFilePath)
-    data && (scheduledtasks.value = parse(data))
-
-    scheduledtasks.value.forEach(async ({ disabled, cron, id }) => {
-      if (!disabled) {
-        cronJobsMap[id] = new Cron(cron, () => {
-          runScheduledTask(id)
-        })
-      }
-    })
-  }
+  const setupScheduledTasks = async () => {}
 
   const runScheduledTask = async (id: string) => {
     const task = getScheduledTaskById(id)

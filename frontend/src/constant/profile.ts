@@ -122,7 +122,7 @@ export const DefaultInboundDirect = (): NonNullable<App.Inbound['direct']> => ({
 
 export const DefaultInboundTun = (): NonNullable<App.Inbound['tun']> => ({
   interface_name: '',
-  address: ['172.18.0.1/30', 'fdfe:dcba:9876::1/126'],
+  address: ['198.18.0.1/30', 'fdfe:dcba:9876::1/126'],
   mtu: 0,
   auto_route: true,
   strict_route: true,

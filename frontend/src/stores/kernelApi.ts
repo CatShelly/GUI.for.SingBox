@@ -2,6 +2,9 @@ import { defineStore } from 'pinia'
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
+import { EventsOn } from '@/bridge/runtime'
+import { api } from '@/bridge/transport'
+
 import {
   getProxies,
   getConfigs,
@@ -34,7 +37,7 @@ import {
   useRulesetsStore,
 } from '@/stores'
 import {
-  generateConfigFile,
+  generateConfig,
   updateTrayAndMenus,
   getKernelFileName,
   normalizeProxyHost,
@@ -252,152 +255,117 @@ export const useKernelApiStore = defineStore('kernelApi', () => {
   const restarting = ref(false)
   const needRestart = ref(false)
   const coreStateLoading = ref(true)
-  let isCoreStartedByThisInstance = false
-  let { promise: coreStoppedPromise, resolve: coreStoppedResolver } = Promise.withResolvers()
-
-  const initCoreState = async () => {
-    corePid.value = Number(await ReadFile(CorePidFilePath).catch(() => -1))
-    const processName = corePid.value === -1 ? '' : await ProcessInfo(corePid.value).catch(() => '')
-    running.value = processName.startsWith('sing-box')
-
+  let revision = 0
+  let initialized = false
+  let statusQueue = Promise.resolve()
+  type CoreStatus = {
+    running: boolean
+    pid: number
+    revision: number
+    profile?: App.Profile
+    alpha: boolean
+    error: string
+  }
+  const acceptStatus = async (state: CoreStatus) => {
+    const changed = state.pid !== corePid.value || state.revision !== revision
+    const wasRunning = running.value
+    corePid.value = state.pid
+    running.value = state.running
+    revision = state.revision
+    if (state.profile) runtimeProfile = deepClone(state.profile)
+    if (changed || !initialized) {
+      destroyWebsocket()
+      if (state.running) {
+        initWebsocket()
+        await Promise.all([refreshConfig(), refreshProviderProxies()]).catch((e) =>
+          message.error(e),
+        )
+        await pluginsStore.onCoreStartedTrigger()
+      } else {
+        resetConfig()
+        if (wasRunning) await pluginsStore.onCoreStoppedTrigger()
+      }
+    }
+    initialized = true
     coreStateLoading.value = false
-
-    if (running.value) {
-      initWebsocket()
-      await Promise.all([refreshConfig(), refreshProviderProxies()])
-      await envStore.updateSystemProxyStatus()
-    } else if (appSettingsStore.app.autoStartKernel) {
-      await startCore()
-    }
   }
-
-  const runCoreProcess = async (isAlpha: boolean) => {
-    let stopped = false
-    const pid = await ExecBackground(
-      CoreWorkingDirectory + '/' + getKernelFileName(isAlpha),
-      getKernelRuntimeArgs(isAlpha),
-      undefined,
-      async (end) => {
-        stopped = true
-        const logs = await ReadFile(CoreLogFilePath, { Range: '-4096' }).catch((err) => String(err))
-        logs.split('\n').forEach((line) => line && logsStore.recordKernelLog(line))
-        end && logsStore.recordKernelLog(end)
-        onCoreStopped()
-      },
-      {
-        PidFile: CorePidFilePath,
-        LogFile: CoreLogFilePath,
-        Env: getKernelRuntimeEnv(isAlpha),
-      },
-    )
-    while (!stopped) {
-      const ok = await probeApiAvailability().catch(() => false)
-      if (ok) break
-      await sleep(500)
-    }
-
-    if (stopped) {
-      throw t('kernel.startupFailed')
-    }
-
-    return pid
+  const enqueueStatus = (state: CoreStatus) => {
+    statusQueue = statusQueue.catch(() => {}).then(() => acceptStatus(state))
+    return statusQueue
   }
+  const initCoreState = async () => {
+    await enqueueStatus(await api<CoreStatus>('/core/status'))
+  }
+  EventsOn('webui:core', (state: CoreStatus) => {
+    void enqueueStatus(state).catch((e) => message.error(e))
+  })
+  EventsOn('webui:reconnected', () => {
+    if (initialized) void initCoreState().catch((e) => message.error(e))
+  })
 
-  const onCoreStarted = async (pid: number) => {
-    corePid.value = pid
-    running.value = true
+  const applyProfile = async (profile: App.Profile) => {
+    let generated = await generateConfig(profile)
+    generated = await pluginsStore.onBeforeCoreStartTrigger(generated, profile)
+    generated.experimental ??= {}
+    generated.experimental.cache_file ??= {}
+    generated.experimental.cache_file.path = 'cache.db'
+    const alpha = appSettingsStore.app.kernel.branch === Branch.Alpha
+    const state = await api<CoreStatus>('/core/apply', {
+      config: generated,
+      profile: deepClone(profile),
+      alpha,
+      env: getKernelRuntimeEnv(alpha),
+      revision,
+    })
     needRestart.value = false
-    isCoreStartedByThisInstance = true
-    coreStoppedPromise = new Promise((r) => (coreStoppedResolver = r))
-
-    initWebsocket()
-    await Promise.all([refreshConfig(), refreshProviderProxies()])
-
-    if (appSettingsStore.app.autoSetSystemProxy) {
-      await envStore.setSystemProxy().catch((err) => message.error(err))
-    }
-    if (appSettingsStore.app.autoSetSystemDNS) {
-      await envStore.setSystemDNS(true).catch((err) => message.error(err))
-    }
-    await envStore.updateSystemProxyStatus()
-
-    await pluginsStore.onCoreStartedTrigger()
+    await enqueueStatus(state)
   }
-
-  const onCoreStopped = async () => {
-    if (!isCoreStartedByThisInstance) {
-      await RemoveFile(CorePidFilePath)
-    }
-
-    corePid.value = -1
-    running.value = false
-    needRestart.value = false
-
-    destroyWebsocket()
-
-    await envStore.updateSystemProxyStatus()
-    if (envStore.systemProxy) {
-      await envStore.clearSystemProxy()
-    }
-    if (appSettingsStore.app.autoSetSystemDNS || envStore.systemDNSSet) {
-      await envStore.setSystemDNS(false).catch((err) => message.error(err))
-    }
-
-    resetConfig()
-
-    await pluginsStore.onCoreStoppedTrigger()
-
-    coreStoppedResolver(null)
-  }
-
   const startCore = async (_profile?: App.Profile) => {
-    if (running.value) throw 'The core is already running'
-
-    logsStore.clearKernelLog()
-
-    const { profile: profileID, branch } = appSettingsStore.app.kernel
-    const profile = _profile || profilesStore.getProfileById(profileID)
-    if (!profile) throw 'Choose a profile first'
-
-    if (!_profile) {
-      runtimeProfile = undefined
-    }
-
+    const profile = _profile || profilesStore.getProfileById(appSettingsStore.app.kernel.profile)
+    if (!profile) throw new Error('Choose a profile first')
     starting.value = true
     try {
-      await generateConfigFile(profile, (config) =>
-        pluginsStore.onBeforeCoreStartTrigger(config, profile),
-      )
-      const isAlpha = branch === Branch.Alpha
-      const pid = await runCoreProcess(isAlpha)
-      pid && (await onCoreStarted(pid))
+      await applyProfile(profile)
     } finally {
       starting.value = false
+      await initCoreState()
     }
   }
-
   const stopCore = async () => {
-    if (!running.value) throw 'The core is not running'
-
     stopping.value = true
     try {
       await pluginsStore.onBeforeCoreStopTrigger()
-      await KillProcess(corePid.value)
-      await (isCoreStartedByThisInstance ? coreStoppedPromise : onCoreStopped())
+      await enqueueStatus(await api<CoreStatus>('/core/stop', {}))
     } finally {
       stopping.value = false
+      await initCoreState()
     }
   }
-
   const restartCore = async (cleanupTask?: () => Promise<any>, keepRuntimeProfile = false) => {
     restarting.value = true
     try {
-      await stopCore()
-      await cleanupTask?.()
-      await startCore(keepRuntimeProfile ? runtimeProfile : undefined)
+      await pluginsStore.onBeforeCoreStopTrigger()
+      if (cleanupTask) {
+        await api('/core/stop', {})
+        await cleanupTask()
+      }
+      const profile = keepRuntimeProfile
+        ? runtimeProfile
+        : profilesStore.getProfileById(appSettingsStore.app.kernel.profile)
+      if (!profile) throw new Error('Choose a profile first')
+      await applyProfile(profile)
     } finally {
-      needRestart.value = false
       restarting.value = false
+      await initCoreState()
+    }
+  }
+  const restartAppliedCore = async () => {
+    restarting.value = true
+    try {
+      await enqueueStatus(await api<CoreStatus>('/core/restart', {}))
+    } finally {
+      restarting.value = false
+      await initCoreState()
     }
   }
 
@@ -548,6 +516,7 @@ export const useKernelApiStore = defineStore('kernelApi', () => {
   watch([watchSources, running], updateTrayAndMenus)
 
   return {
+    restartAppliedCore,
     startCore,
     stopCore,
     restartCore,

@@ -1,23 +1,28 @@
-import * as Bridge from '@wails/go/bridge/App'
+import * as Bridge from '@/bridge/bindings'
 import {
   IsNotificationAvailable,
   RequestNotificationAuthorization,
   SendNotification,
-} from '@wails/runtime/runtime'
+} from '@/bridge/runtime'
 
 import { sampleID } from '@/utils'
 
-export const RestartApp = Bridge.RestartApp
+import { api } from './transport'
 
-export const ExitApp = Bridge.ExitApp
+export const RestartApp = () => location.reload()
 
-export const ShowMainWindow = Bridge.ShowMainWindow
+export const ExitApp = async () => {
+  await api('/logout', {})
+  location.reload()
+}
 
-export const UpdateTray = Bridge.UpdateTray
+export const ShowMainWindow = () => window.focus()
 
-export const UpdateTrayMenus = Bridge.UpdateTrayMenus
+export const UpdateTray = (..._args: any[]) => {}
 
-export const UpdateTrayAndMenus = Bridge.UpdateTrayAndMenus
+export const UpdateTrayMenus = (..._args: any[]) => {}
+
+export const UpdateTrayAndMenus = (..._args: any[]) => {}
 
 export const GetEnv = <T extends string | undefined = undefined>(
   key?: T,

@@ -137,96 +137,9 @@ export const useAppStore = defineStore('app', () => {
   const updatable = computed(() => downloadUrl.value && APP_VERSION !== remoteVersion.value)
 
   const downloadApp = async () => {
-    downloading.value = true
-    try {
-      const downloadCacheFile = 'data/.cache/gui.zip'
-
-      const { update, destroy } = message.info('common.downloading', 10 * 60 * 1_000, () => {
-        HttpCancel(downloadCacheFile)
-        setTimeout(() => RemoveFile(downloadCacheFile), 1000)
-      })
-
-      await Download(
-        downloadUrl.value,
-        downloadCacheFile,
-        undefined,
-        (progress, total) => {
-          update(t('common.downloading') + ((progress / total) * 100).toFixed(2) + '%')
-        },
-        {
-          CancelId: downloadCacheFile,
-          Sha256: downloadDigest.value.slice(7),
-        },
-      ).finally(destroy)
-
-      const { appName, os, appPath } = envStore.env
-
-      if (os === OS.Darwin) {
-        const cur_pkg_bak = appPath + '.bak'
-        await UnzipZIPFile(downloadCacheFile, 'data/.cache')
-        await RemoveFile(downloadCacheFile)
-        await MoveFile(appPath, cur_pkg_bak)
-        await MoveFile(`${cur_pkg_bak}/Contents/MacOS/data/.cache/${APP_TITLE}.app`, appPath)
-        await Exec('xattr', ['-rd', 'com.apple.quarantine', appPath])
-        await RemoveFile(`${cur_pkg_bak}/Contents/MacOS/${RollingReleaseDirectory}`)
-        await RemoveFile(cur_pkg_bak)
-      } else {
-        const suffix = { [OS.Windows]: '.exe', [OS.Linux]: '' }[os]
-        await MoveFile(appName, appName + '.bak')
-        await UnzipZIPFile(downloadCacheFile, '.')
-        await MoveFile(APP_TITLE + suffix, appName)
-        await RemoveFile(downloadCacheFile)
-        await RemoveFile(RollingReleaseDirectory)
-      }
-      message.success('about.updateSuccessfulRestart')
-      restartable.value = true
-    } catch (error: any) {
-      console.log(error)
-      message.error(error.message || error, 5_000)
-    }
-    downloading.value = false
+    throw new Error('WebUI updates are installed by the server administrator')
   }
-
-  const checkForUpdates = async (showTips = false) => {
-    if (checkForUpdatesLoading.value || downloading.value) return
-    checkForUpdatesLoading.value = true
-    remoteVersion.value = APP_VERSION
-    downloadDigest.value = ''
-    try {
-      const { body } = await HttpGet<Record<string, any>>(APP_VERSION_API, {
-        Authorization: getGitHubApiAuthorization(),
-      })
-      if (body.message) throw body.message
-
-      const { tag_name, assets } = body
-
-      const { os, arch } = envStore.env
-      const assetName = `${APP_TITLE}-${os}-${arch}.zip`
-
-      const asset = assets.find((v: any) => v.name === assetName)
-      if (!asset) throw 'Asset Not Found:' + assetName
-      if (asset.uploader.login !== 'github-actions[bot]') {
-        await confirm('common.warning', 'settings.kernel.risk', {
-          type: 'text',
-          okText: 'settings.kernel.stillDownload',
-        })
-      }
-
-      remoteVersion.value = tag_name
-      downloadUrl.value = asset.browser_download_url
-      downloadDigest.value = asset.digest
-
-      if (showTips) {
-        message.info(updatable.value ? 'about.newVersion' : 'about.latestVersion')
-      }
-    } catch (error: any) {
-      console.error(error)
-      message.error(error.message || error)
-    }
-    lastCheckTime.value = Date.now()
-    checkForUpdatesLoading.value = false
-  }
-
+  const checkForUpdates = async (_showTips = false) => {}
   watch(showAbout, (v) => {
     if (v) {
       const m = modal({

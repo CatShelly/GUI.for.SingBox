@@ -1,5 +1,5 @@
-import * as Bridge from '@wails/go/bridge/App'
-import { EventsOn, EventsOff } from '@wails/runtime/runtime'
+import * as Bridge from '@/bridge/bindings'
+import { EventsOn, EventsOff, EventsOnce } from '@/bridge/runtime'
 
 import { sampleID } from '@/utils'
 
@@ -42,6 +42,12 @@ export const ExecBackground = async (
   const outEvent = (onOut && sampleID()) || ''
   const endEvent = (onEnd && sampleID()) || (outEvent && sampleID()) || ''
 
+  if (outEvent) EventsOn(outEvent, onOut!)
+  if (endEvent)
+    EventsOnce(endEvent, (data: any) => {
+      if (outEvent) EventsOff(outEvent)
+      onEnd?.(data)
+    })
   const { flag, data } = await Bridge.ExecBackground(
     path,
     args,
@@ -51,18 +57,6 @@ export const ExecBackground = async (
   )
   if (!flag) {
     throw data
-  }
-
-  if (outEvent) {
-    EventsOn(outEvent, onOut!)
-  }
-
-  if (endEvent) {
-    EventsOn(endEvent, (data: any) => {
-      outEvent && EventsOff(outEvent)
-      EventsOff(endEvent)
-      onEnd?.(data)
-    })
   }
 
   return Number(data)

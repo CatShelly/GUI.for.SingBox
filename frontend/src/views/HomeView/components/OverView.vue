@@ -163,15 +163,6 @@ onUnmounted(() => {
     >
       <Button type="text" size="small" icon="settings" @click="handleShowSettings" />
       <Switch
-        v-model="envStore.systemProxy"
-        size="small"
-        border="square"
-        class="ml-4"
-        @change="onSystemProxySwitchChange"
-      >
-        {{ t('home.overview.systemProxy') }}
-      </Switch>
-      <Switch
         v-model="kernelApiStore.config.tun.enable"
         size="small"
         border="square"

@@ -358,44 +358,7 @@ export const reloadApp = async () => {
 }
 
 export const exitApp = async () => {
-  const { t } = i18n.global
-  const appStore = useAppStore()
-  const envStore = useEnvStore()
-  const pluginsStore = usePluginsStore()
-  const appSettings = useAppSettingsStore()
-  const kernelApiStore = useKernelApiStore()
-
-  appStore.isAppExiting = true
-
-  let timedout = false
-  const { destroy } = message.info('titlebar.exitPending', 10 * 60 * 1000)
-
-  const timeoutId = setTimeout(async () => {
-    timedout = true
-    appStore.isAppExiting = false
-    destroy()
-    confirm('Warning', t('titlebar.exitTimeout')).then(ExitApp)
-  }, 10_000)
-
-  try {
-    if (kernelApiStore.running && appSettings.app.closeKernelOnExit) {
-      await kernelApiStore.stopCore()
-      if (appSettings.app.autoSetSystemProxy) {
-        await envStore.clearSystemProxy()
-      }
-    }
-    await pluginsStore.onShutdownTrigger()
-    if (!timedout) {
-      clearTimeout(timeoutId)
-      ExitApp()
-    }
-  } catch (err: any) {
-    clearTimeout(timeoutId)
-    confirm('Error', t('titlebar.exitError', { reason: err })).then(ExitApp)
-  }
-
-  appStore.isAppExiting = false
-  destroy()
+  await ExitApp()
 }
 
 export const getKernelFileName = (isAlpha = false) => {

@@ -261,6 +261,23 @@ export const usePluginsStore = defineStore('plugins', () => {
     ;(globalThis as any).__GUI_FOR_CORES_PLUGIN_CONTEXT__ ||= {}
     ;(globalThis as any).__GUI_FOR_CORES_PLUGIN_CONTEXT__[id] = getPluginMetadata(id)
 
+    // Known desktop dashboard URLs must point at the authenticated server proxy.
+    // Keep the stored plugin untouched; only adapt this plugin's browser view.
+    if (id === 'plugin-sing-box-dashboard') {
+      cache.code = cache
+        .code!.replace(
+          'const { url, secret } = getFormData()',
+          'const { secret } = getFormData(); const url = location.origin + "/api/dashboard"',
+        )
+        .replace(
+          'const dashboardUrl = `http://${url}/dashboard`',
+          'const dashboardUrl = location.origin + "/api/dashboard/dashboard/"',
+        )
+        .replace(
+          'const faviconUrl = `http://${url}/dashboard/favicon.svg`',
+          'const faviconUrl = location.origin + "/api/dashboard/dashboard/favicon.svg"',
+        )
+    }
     const code = cache.code
       .replace(new RegExp(`^const\\s+(${eventsStr})`, 'gm'), 'export const $1')
       .replace(new RegExp(`^function\\s+(${eventsStr})`, 'gm'), 'export function $1')

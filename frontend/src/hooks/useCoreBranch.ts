@@ -17,13 +17,12 @@ import {
   OpenDir,
 } from '@/bridge'
 import { CoreWorkingDirectory } from '@/constant/kernel'
-import { Branch, OS } from '@/enums/app'
-import { useAppSettingsStore, useEnvStore, useKernelApiStore } from '@/stores'
+import { Branch } from '@/enums/app'
+import { useAppSettingsStore, useKernelApiStore } from '@/stores'
 import {
   getGitHubApiAuthorization,
   GrantTUNPermission,
   PreserveCorePermissions,
-  ignoredError,
   confirm,
   message,
   debounce,
@@ -54,7 +53,6 @@ export const useCoreBranch = (isAlpha = false) => {
   const rollbackable = ref(false)
 
   const { t } = useI18n()
-  const envStore = useEnvStore()
   const appSettings = useAppSettingsStore()
   const kernelApiStore = useKernelApiStore()
 
@@ -68,7 +66,8 @@ export const useCoreBranch = (isAlpha = false) => {
     () => remoteVersion.value && localVersion.value !== remoteVersion.value,
   )
 
-  const grantable = computed(() => localVersion.value && envStore.env.os !== OS.Windows)
+  // A headless server cannot display the desktop privilege elevation dialog.
+  const grantable = computed(() => false)
 
   const CoreFilePath = `${CoreWorkingDirectory}/${getKernelFileName(isAlpha)}`
   const CoreBakFilePath = `${CoreFilePath}.bak`
@@ -116,32 +115,38 @@ export const useCoreBranch = (isAlpha = false) => {
         },
         {
           CancelId: downloadCacheFile,
-          Sha256: asset.digest.slice(7),
+          Sha256: asset.digest?.startsWith('sha256:') ? asset.digest.slice(7) : undefined,
         },
       )
 
       const stableFileName = getKernelFileName()
 
-      await ignoredError(MoveFile, CoreFilePath, CoreBakFilePath)
-
+      const tmpPath = `data/.cache/${assetName.replace(/\.(zip|tar\.gz)$/, '')}`
       if (assetName.endsWith('.zip')) {
         await UnzipZIPFile(downloadCacheFile, 'data/.cache')
-        const tmpPath = `data/.cache/${assetName.replace('.zip', '')}`
-        await MoveFile(`${tmpPath}/${stableFileName}`, CoreFilePath)
-        await RemoveFile(tmpPath)
       } else if (assetName.endsWith('.tar.gz')) {
         await UnzipTarGZFile(downloadCacheFile, 'data/.cache')
-        const tmpPath = `data/.cache/${assetName.replace('.tar.gz', '')}`
-        await MoveFile(`${tmpPath}/${stableFileName}`, CoreFilePath)
-        await RemoveFile(tmpPath)
+      } else {
+        throw new Error('Unsupported core archive: ' + assetName)
       }
-
-      await RemoveFile(downloadCacheFile)
-
+      const candidate = `${tmpPath}/${stableFileName}`
       if (!CoreFilePath.endsWith('.exe')) {
-        await ignoredError(Exec, 'chmod', ['+x', await AbsolutePath(CoreFilePath)])
+        await Exec('chmod', ['+x', await AbsolutePath(candidate)])
+      }
+      await Exec(candidate, ['version'])
+      const hadCore = await FileExists(CoreFilePath)
+      if (hadCore) await MoveFile(CoreFilePath, CoreBakFilePath)
+      try {
+        await MoveFile(candidate, CoreFilePath)
+      } catch (error) {
+        if (hadCore) await MoveFile(CoreBakFilePath, CoreFilePath)
+        throw error
+      }
+      if (!CoreFilePath.endsWith('.exe')) {
         await PreserveCorePermissions(CoreBakFilePath, CoreFilePath)
       }
+      await RemoveFile(tmpPath)
+      await RemoveFile(downloadCacheFile)
 
       refreshLocalVersion()
       downloadCompleted.value = true

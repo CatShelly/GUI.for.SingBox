@@ -1,0 +1,20 @@
+[Unit]
+Description=SingBox WebUI
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=singbox-webui
+Group=singbox-webui
+WorkingDirectory=/opt/singbox-webui
+ExecStart=/opt/singbox-webui/singbox-webui -listen 127.0.0.1:9090 -data-dir /var/lib/singbox-webui -secure-cookie
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=30
+KillMode=control-group
+UMask=0077
+StateDirectory=singbox-webui
+
+[Install]
+WantedBy=multi-user.target

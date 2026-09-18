@@ -1,6 +1,7 @@
 import { ref } from 'vue'
 
-import { IsStartup } from '@/bridge'
+import { connectEvents } from '@/bridge/runtime'
+
 import * as Stores from '@/stores'
 import { message, sleep } from '@/utils'
 
@@ -17,7 +18,6 @@ export const useAppBootstrap = () => {
   const subscribesStore = Stores.useSubscribesStore()
   const rulesetsStore = Stores.useRulesetsStore()
   const pluginsStore = Stores.usePluginsStore()
-  const scheduledTasksStore = Stores.useScheduledTasksStore()
   const kernelApiStore = Stores.useKernelApiStore()
 
   const showError = (error: unknown) => {
@@ -34,15 +34,12 @@ export const useAppBootstrap = () => {
       subscribesStore.setupSubscribes(),
       rulesetsStore.setupRulesets(),
       pluginsStore.setupPlugins(),
-      scheduledTasksStore.setupScheduledTasks(),
     ])
 
     const startTime = performance.now()
     percent.value = 20
 
-    if (await IsStartup()) {
-      await pluginsStore.onStartupTrigger().catch(showError)
-    }
+    await connectEvents()
 
     percent.value = 40
     await pluginsStore.onReadyTrigger().catch(showError)
@@ -53,7 +50,7 @@ export const useAppBootstrap = () => {
     await sleep(Math.max(0, MIN_SPLASH_DURATION - duration))
 
     loading.value = false
-    kernelApiStore.initCoreState()
+    await kernelApiStore.initCoreState().catch(showError)
   }
 
   initialize().catch(showError)

@@ -1,4 +1,4 @@
-import * as Bridge from '@wails/go/bridge/App'
+import * as Bridge from '@/bridge/bindings'
 
 interface IOOptions {
   Mode?: 'Binary' | 'Text'
@@ -96,19 +96,24 @@ export const ReadDir = async (path: string) => {
 }
 
 export const OpenDir = async (path: string) => {
-  const { flag, data } = await Bridge.OpenDir(path)
-  if (!flag) {
-    throw data
-  }
-  return data
+  const files = await ReadDir(path)
+  const { alert } = await import('@/utils/interaction')
+  await alert(
+    '服务器目录',
+    path + '\n\n' + files.map((f) => (f.isDir ? '[目录] ' : '') + f.name).join('\n'),
+  )
+  return path
 }
 
 export const OpenURI = async (uri: string) => {
-  const { flag, data } = await Bridge.OpenURI(uri)
-  if (!flag) {
-    throw data
+  if (/^https?:\/\//i.test(uri)) {
+    window.open(uri, '_blank', 'noopener,noreferrer')
+    return uri
   }
-  return data
+  const content = await ReadFile(uri)
+  const { alert } = await import('@/utils/interaction')
+  await alert(uri, content)
+  return uri
 }
 
 export const UnzipZIPFile = async (path: string, output: string) => {

@@ -9,11 +9,6 @@ import {
   WindowSetSystemDefaultTheme,
   WindowIsMaximised,
   WindowIsMinimised,
-  WindowGetSize,
-  WindowGetPosition,
-  WindowSetPosition,
-  WindowSetSize,
-  WindowIsFullscreen,
 } from '@/bridge'
 import {
   Colors,
@@ -125,7 +120,12 @@ export const useAppSettingsStore = defineStore('app-settings', () => {
     const data = await ignoredError(ReadFile, UserFilePath)
     let settings: App.AppSettings
     if (data) {
-      settings = parse(data)
+      const saved = parse(data) || {}
+      settings = {
+        ...deepClone(app.value),
+        ...saved,
+        kernel: { ...deepClone(app.value.kernel), ...saved.kernel },
+      }
     } else {
       settings = deepClone(app.value)
     }
@@ -187,6 +187,15 @@ export const useAppSettingsStore = defineStore('app-settings', () => {
       settings.debugModalSideBySide = false
     }
 
+    settings.autoSetSystemProxy = false
+    settings.autoSetSystemDNS = false
+    settings.autoStartKernel = false
+    settings.autoRestartKernel = false
+    settings.closeKernelOnExit = false
+    settings.addPluginToMenu = false
+    settings.addGroupToMenu = false
+    settings.rollingRelease = false
+    settings.pages = settings.pages.filter((p) => p !== 'ScheduledTasks')
     app.value = settings
     latestUserSettings = stringify(app.value)
   }
@@ -298,43 +307,11 @@ export const useAppSettingsStore = defineStore('app-settings', () => {
     { immediate: true },
   )
 
-  let originalModalSize: { w: number; h: number } | undefined
-  let resizeQueue = Promise.resolve()
-
   watch(
     () => appStore.modalSideBySide && appStore.modalTabs.length > 0,
     (split) => {
-      resizeQueue = resizeQueue.then(async () => {
-        if (split === appStore.modalSplitActive) return
-        try {
-          const [maximized, fullscreen] = await Promise.all([
-            WindowIsMaximised(),
-            WindowIsFullscreen(),
-          ])
-          if (split) {
-            const size = await WindowGetSize()
-            const availableWidth = window.screen.availWidth
-            if (!maximized && !fullscreen) {
-              const position = await WindowGetPosition()
-              originalModalSize = size
-              const width = Math.min(size.w * 2, availableWidth)
-              const left = (window.screen as Screen & { availLeft?: number }).availLeft ?? 0
-              WindowSetPosition(
-                Math.max(left, Math.min(position.x, left + availableWidth - width)),
-                position.y,
-              )
-              WindowSetSize(width, size.h)
-            }
-          } else if (originalModalSize && !maximized && !fullscreen) {
-            WindowSetSize(originalModalSize.w, originalModalSize.h)
-          }
-          appStore.modalSplitActive = split
-          document.body.setAttribute('feature-modal-side-by-side', String(split))
-          if (!split) originalModalSize = undefined
-        } catch (error) {
-          message.error(error)
-        }
-      })
+      appStore.modalSplitActive = split
+      document.body.setAttribute('feature-modal-side-by-side', String(split))
     },
   )
 
@@ -348,7 +325,7 @@ export const useAppSettingsStore = defineStore('app-settings', () => {
       applyAppSettings.windowSize(w, h)
     }
   }, 1000)
-  window.addEventListener('resize', onWindowSizeChange)
+  // Browser window dimensions are per-client, not persisted server settings.
 
   /* Apply TrayAndMenus */
   watch(

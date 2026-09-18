@@ -1,5 +1,5 @@
-import * as Bridge from '@wails/go/bridge/App'
-import { EventsOn, EventsEmit, EventsOff } from '@wails/runtime/runtime'
+import * as Bridge from '@/bridge/bindings'
+import { EventsOn, EventsEmit, EventsOff } from '@/bridge/runtime'
 
 interface Request {
   id: string

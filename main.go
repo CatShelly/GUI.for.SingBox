@@ -3,108 +3,64 @@ package main
 import (
 	"context"
 	"embed"
+	"flag"
 	"guiforcores/bridge"
+	"guiforcores/internal/web"
+	"io/fs"
+	"log"
+	"net/http"
+	"os"
+	"os/signal"
+	"path/filepath"
+	"syscall"
 	"time"
-
-	"github.com/wailsapp/wails/v2"
-	"github.com/wailsapp/wails/v2/pkg/logger"
-	"github.com/wailsapp/wails/v2/pkg/options"
-	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
-	"github.com/wailsapp/wails/v2/pkg/options/linux"
-	"github.com/wailsapp/wails/v2/pkg/options/mac"
-	"github.com/wailsapp/wails/v2/pkg/options/windows"
-	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 //go:embed all:frontend/dist
-var assets embed.FS
+var frontendAssets embed.FS
 
-//go:embed frontend/dist/favicon.ico
-var icon []byte
+func embeddedFrontend() fs.FS {
+	assets, err := fs.Sub(frontendAssets, "frontend/dist")
+	if err != nil {
+		panic(err)
+	}
+	return assets
+}
 
 func main() {
-	app := bridge.CreateApp(assets)
-
-	trayStart, trayEnd := bridge.CreateTray(app, icon)
-
-	// Create application with options
-	err := wails.Run(&options.App{
-		MinWidth:         600,
-		MinHeight:        400,
-		DisableResize:    false,
-		Menu:             app.AppMenu,
-		Title:            bridge.Env.AppName,
-		Frameless:        bridge.Env.OS != "darwin",
-		Width:            bridge.Config.Width,
-		Height:           bridge.Config.Height,
-		StartHidden:      bridge.Config.StartHidden,
-		WindowStartState: options.WindowStartState(bridge.Config.WindowStartState),
-		BackgroundColour: &options.RGBA{R: 255, G: 255, B: 255, A: 1},
-		Windows: &windows.Options{
-			WebviewIsTransparent: true,
-			WindowIsTranslucent:  true,
-			ContentProtection:    bridge.Config.ContentProtection,
-			BackdropType:         windows.Acrylic,
-			WebviewBrowserPath:   bridge.Env.WebviewPath,
-		},
-		Mac: &mac.Options{
-			TitleBar:             mac.TitleBarHiddenInset(),
-			Appearance:           mac.DefaultAppearance,
-			ContentProtection:    bridge.Config.ContentProtection,
-			WebviewIsTransparent: true,
-			WindowIsTranslucent:  true,
-			About: &mac.AboutInfo{
-				Title:   bridge.Env.AppName,
-				Message: "© 2026 GUI.for.Cores",
-				Icon:    icon,
-			},
-		},
-		Linux: &linux.Options{
-			Icon:                icon,
-			WindowIsTranslucent: false,
-			ProgramName:         bridge.Env.AppName,
-			WebviewGpuPolicy:    linux.WebviewGpuPolicy(bridge.Config.WebviewGpuPolicy),
-		},
-		AssetServer: &assetserver.Options{
-			Assets:     assets,
-			Middleware: bridge.RollingRelease,
-		},
-		SingleInstanceLock: &options.SingleInstanceLock{
-			UniqueId: func() string {
-				if bridge.Config.MultipleInstance {
-					return time.Now().String()
-				}
-				return bridge.Env.AppName
-			}(),
-			OnSecondInstanceLaunch: func(data options.SecondInstanceData) {
-				runtime.Show(app.Ctx)
-				runtime.EventsEmit(app.Ctx, "onLaunchApp", data.Args)
-			},
-		},
-		OnStartup: func(ctx context.Context) {
-			app.Ctx = ctx
-			runtime.InitializeNotifications(ctx)
-			trayStart()
-		},
-		OnBeforeClose: func(ctx context.Context) (prevent bool) {
-			if !bridge.Env.PreventExit {
-				trayEnd()
-				runtime.CleanupNotifications(ctx)
-				return false
-			}
-			runtime.EventsEmit(ctx, "onBeforeExitApp")
-			return true
-		},
-		Bind: []any{
-			app,
-		},
-		LogLevel: logger.INFO,
-		Debug: options.Debug{
-			OpenInspectorOnStartup: true,
-		},
-	})
-
+	listen := flag.String("listen", "127.0.0.1:9090", "HTTP listen address")
+	base := flag.String("data-dir", ".", "Base directory containing data/")
+	secure := flag.Bool("secure-cookie", false, "Require HTTPS session cookies, including behind a reverse proxy")
+	flag.Parse()
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer cancel()
+	app, err := bridge.CreateWebApp(context.Background(), *base)
 	if err != nil {
-		println("Error:", err.Error())
+		log.Fatal(err)
+	}
+	passwordFile := filepath.Join(bridge.Env.BasePath, "data", "user.yaml")
+	password, generated, err := web.LoadPassword(passwordFile)
+	if err != nil {
+		log.Fatal(err)
+	}
+	if generated {
+		log.Printf("Initial WebUI password saved in %s (webuiPassword)", passwordFile)
+	}
+	server, err := web.New(app, embeddedFrontend(), "", password, *secure)
+	if err != nil {
+		log.Fatal(err)
+	}
+	httpServer := &http.Server{Addr: *listen, Handler: server.Handler(), ReadHeaderTimeout: 10 * time.Second, IdleTimeout: 90 * time.Second}
+	go func() {
+		<-ctx.Done()
+		server.Close()
+		shutdown, done := context.WithTimeout(context.Background(), 5*time.Second)
+		defer done()
+		_ = httpServer.Shutdown(shutdown)
+	}()
+	log.Printf("WebUI listening on %s; data base: %s", *listen, bridge.Env.BasePath)
+	if err = httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		server.Close()
+		log.Fatal(err)
 	}
 }
