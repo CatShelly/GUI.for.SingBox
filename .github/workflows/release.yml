@@ -1,11 +1,10 @@
-name: Build SingBox WebUI
+name: Release SingBox WebUI
 on:
-  workflow_dispatch:
   push:
-    branches: [main]
-  pull_request:
+    tags:
+      - "v*"
 permissions:
-  contents: read
+  contents: write
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -35,7 +34,24 @@ jobs:
             package="singbox-webui-linux-$arch"
             tar -C dist -czf "$out.tar.gz" "$package/singbox-webui" "$package/README.md" "$package/LICENSE" "$package/deploy/singbox-webui.service" "$package/deploy/nginx.conf.example"
           done
+      - name: Generate checksums
+        working-directory: dist
+        run: sha256sum singbox-webui-linux-*.tar.gz > SHA256SUMS
       - uses: actions/upload-artifact@v4
         with:
           name: singbox-webui-linux
-          path: dist/*.tar.gz
+          path: |
+            dist/*.tar.gz
+            dist/SHA256SUMS
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
+          files: |
+            dist/*.tar.gz
+            dist/SHA256SUMS
+          fail_on_unmatched_files: true
+          draft: false
+          prerelease: ${{ contains(github.ref_name, 'dev') }}
+          generate_release_notes: true
