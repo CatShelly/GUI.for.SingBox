@@ -15,6 +15,48 @@
 移除桌面托盘/窗口控制、GUI 更新、系统代理/DNS自动设置；第一版不加载定时任务，也不支持插件动态 HTTP 服务器。
 无浏览器时可以继续运行或恢复最终配置，但不执行订阅更新、配置重新生成、插件任务和启动/关闭 JS 钩子。
 
+## 一键安装（Linux + systemd）
+
+支持 amd64 / arm64，需要 Bash、curl、tar、sha256sum 和 systemd。固定下载本仓库最新正式 Release，并安装 sing-box **1.14.1**。仓库需先发布带 Linux 压缩包及 `SHA256SUMS` 的 Release。
+
+[一键安装脚本](https://raw.githubusercontent.com/CatShelly/GUI.for.SingBox/main/scripts/install.sh)：
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/CatShelly/GUI.for.SingBox/main/scripts/install.sh -o /tmp/singbox-webui-install.sh && sudo bash /tmp/singbox-webui-install.sh
+```
+
+可用唯一的可选参数指定监听地址和端口（默认 `0.0.0.0:9090`）：
+
+```sh
+sudo bash /tmp/singbox-webui-install.sh 0.0.0.0:12500
+```
+
+安装位置为 `/opt/singbox-webui`，服务名为 `singbox-webui`。工作目录是安装目录，使用 `-data-dir ./`，所有应用数据均在 `/opt/singbox-webui/data/`。默认以 root 运行以支持 TUN，插件及文件/命令接口也具有该用户权限。脚本不会修改防火墙；远程访问需服务器允许所选 TCP 端口。
+
+支持 `127.0.0.1:12500` 或 IPv6 地址（如 `'[::]:12500'`）。服务配置、就绪检查和安装完成后的访问地址会使用传入的监听地址与端口。
+
+服务开机自启，默认监听 `0.0.0.0:9090`，访问 `http://服务器IP:9090`。安装完成会输出随机登录密码。修改 `/opt/singbox-webui/data/user.yaml` 的 `webuiPassword` 字段后执行 `sudo systemctl restart singbox-webui` 生效。再次安装遇到已有目录或服务会停止，不会覆盖现有配置。
+
+```sh
+sudo systemctl status singbox-webui
+sudo journalctl -u singbox-webui -n 50 --no-pager
+```
+
+### 完全卸载
+
+以下命令会删除程序、核心、密码及所有配置；如需保留数据，请先备份 `/opt/singbox-webui/data/`。适用于上述一键安装的固定目录：
+
+```sh
+sudo systemctl disable --now singbox-webui.service
+sudo rm -f /etc/systemd/system/singbox-webui.service
+sudo systemctl daemon-reload
+sudo systemctl reset-failed singbox-webui.service 2>/dev/null || true
+sudo rm -rf -- /opt/singbox-webui
+rm -f /tmp/singbox-webui-install.sh
+```
+
+无需删除系统用户或 `/var/lib` 数据目录；一键安装不会创建它们。历史服务日志由系统 journal 统一管理。
+
 ## 构建
 
 需要 Go 1.27+、Node.js 22.12+（推荐 24）、pnpm 10。沿用原项目当前依赖版本。
@@ -55,17 +97,18 @@ webuiPassword: "你的登录密码"
 使用 HTTPS 反向代理时加 `-secure-cookie`，示例见 `deploy/nginx.conf.example`。
 仅 HTTP 访问时不要加该参数，否则浏览器不会发送会话 Cookie。剪贴板读取要求 HTTPS，复制支持浏览器兼容回退。
 
-## systemd
+## 手动配置 systemd
 
-1. 解压到 `/opt/singbox-webui`，首次登录后从核心设置下载 sing-box。
-2. 创建 `singbox-webui` 系统用户及组，保证 WebUI 可执行文件可执行，数据目录可写。
-3. 首次启动后查看 `/var/lib/singbox-webui/data/user.yaml` 中的 `webuiPassword`；该文件应仅允许服务用户和管理员读取。
-4. 将 `deploy/singbox-webui.service` 放入 `/etc/systemd/system/`，按实际路径和 HTTPS 部署调整 ExecStart。
-5. 执行 `systemctl daemon-reload` 和 `systemctl enable --now singbox-webui`。
+将发布包解压到 `/opt/singbox-webui`，再将 `deploy/singbox-webui.service` 复制到 `/etc/systemd/system/`，执行：
 
-示例服务通过 StateDirectory 自动建立持久化目录，默认配合 HTTPS 反向代理。
-普通代理功能可用非 root 用户运行。TUN 所需设备和网络权限应另行配置，本版未验证透明代理部署。WebUI 不提供桌面提权弹窗；更新核心后如使用文件 capabilities，需重新配置相关权限。
-同一数据目录只启动一个 WebUI 服务，不再让其他服务同时管理同一个核心进程。
+```sh
+sudo systemctl daemon-reload
+sudo systemctl enable --now singbox-webui
+```
+
+示例与一键安装使用相同目录和监听配置，以 root 运行。首次密码见 `/opt/singbox-webui/data/user.yaml`；手动安装后可在 WebUI 核心设置下载 sing-box。普通代理也可自行改为非 root 用户，并确保该用户对安装目录中的 `data/` 有读写权限。
+
+使用 HTTPS 反向代理时，可将服务监听改为 `127.0.0.1:9090` 并加 `-secure-cookie`，参考 `deploy/nginx.conf.example`。TUN 路由效果仍需在实际 Linux 网络环境验证。同一数据目录只启动一个 WebUI 服务。
 
 ## 插件与数据迁移
 
@@ -87,5 +130,5 @@ webuiPassword: "你的登录密码"
 
 ## 开发与验证
 
-后端默认监听 127.0.0.1:9090。`pnpm --dir frontend dev` 通过 Vite 将 /api 与 WebSocket 代理到后端。
+后端默认监听 0.0.0.0:9090。`pnpm --dir frontend dev` 通过 Vite 将 /api 与 WebSocket 代理到后端。
 Linux amd64/arm64 可交叉编译；Linux 实际服务、TUN和外部 IP 查询需在部署环境验证。

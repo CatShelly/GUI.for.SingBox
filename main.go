@@ -28,7 +28,7 @@ func embeddedFrontend() fs.FS {
 }
 
 func main() {
-	listen := flag.String("listen", "127.0.0.1:9090", "HTTP listen address")
+	listen := flag.String("listen", "0.0.0.0:9090", "HTTP listen address")
 	base := flag.String("data-dir", ".", "Base directory containing data/")
 	secure := flag.Bool("secure-cookie", false, "Require HTTPS session cookies, including behind a reverse proxy")
 	flag.Parse()
