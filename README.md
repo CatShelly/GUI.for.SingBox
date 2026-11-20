@@ -17,7 +17,7 @@
 
 ## 一键安装（Linux + systemd）
 
-支持 amd64 / arm64，需要 Bash、curl、tar、sha256sum 和 systemd。固定下载本仓库最新正式 Release，并安装 sing-box **1.14.1**。仓库需先发布带 Linux 压缩包及 `SHA256SUMS` 的 Release。
+支持 amd64 / arm64，需要 Bash、curl、tar、sha256sum、flock 和 systemd。脚本下载本仓库最新正式 Release，并安装稳定版 sing-box **1.14.4**。仓库需先发布带 Linux 压缩包及 `SHA256SUMS` 的 Release。
 
 [一键安装脚本](https://raw.githubusercontent.com/CatShelly/GUI.for.SingBox/main/scripts/install.sh)：
 
@@ -35,7 +35,11 @@ sudo bash /tmp/singbox-webui-install.sh 0.0.0.0:12500
 
 支持 `127.0.0.1:12500` 或 IPv6 地址（如 `'[::]:12500'`）。服务配置、就绪检查和安装完成后的访问地址会使用传入的监听地址与端口。
 
-服务开机自启，默认监听 `0.0.0.0:9090`，访问 `http://服务器IP:9090`。安装完成会输出随机登录密码。修改 `/opt/singbox-webui/data/user.yaml` 的 `webuiPassword` 字段后执行 `sudo systemctl restart singbox-webui` 生效。再次安装遇到已有目录或服务会停止，不会覆盖现有配置。
+服务开机自启，默认监听 `0.0.0.0:9090`，访问 `http://服务器IP:9090`。安装完成会输出随机登录密码。修改 `/opt/singbox-webui/data/user.yaml` 的 `webuiPassword` 字段后执行 `sudo systemctl restart singbox-webui` 生效。
+
+### 原地升级
+
+已通过一键脚本安装过的用户，重新下载并运行最新脚本即可升级。运行时可以省略监听地址，脚本会读取现有服务配置。升级替换 WebUI 和稳定版 sing-box 两个可执行文件，保留登录密码、配置、插件、Alpha 核心及 systemd 设置。原先运行的服务会重启，重启后需要重新登录。原先已停止的服务保持停止。下载或校验失败会在替换前退出，原先运行的服务若启动失败则尝试恢复旧可执行文件。
 
 ```sh
 sudo systemctl status singbox-webui
