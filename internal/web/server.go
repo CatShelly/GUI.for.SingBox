@@ -223,7 +223,7 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 var rpcMethods = map[string]bool{}
 
 func init() {
-	for _, name := range strings.Fields("AbsolutePath CloseMMDB CopyFile Download Exec ExecBackground FileExists FileSHA256 GetEnv GetInterfaces IsStartup KillProcess MakeDir MoveFile OpenMMDB ProcessInfo ProcessMemory QueryMMDB ReadDir ReadFile RemoveFile Requests TcpPing TcpRequest UdpRequest UnzipGZFile UnzipTarGZFile UnzipZIPFile Upload WriteFile") {
+	for _, name := range strings.Fields("AbsolutePath CloseMMDB CopyFile Download Exec ExecBackground FileExists FileSHA256 GetEnv GetInterfaces IsStartup KillProcess MakeDir MoveFile OpenMMDB ProcessInfo ProcessMemory QueryMMDB ReadDir ReadFile RemoveFile Requests TcpPing TcpRequest TextSHA256 UdpRequest UnzipGZFile UnzipTarGZFile UnzipZIPFile Upload WriteFile") {
 		rpcMethods[name] = true
 	}
 }

@@ -11,7 +11,10 @@ import (
 )
 
 var Config = &AppConfig{}
-var Env = &EnvResult{AppName: "singbox-webui", AppVersion: "v1.27.0-webui.1", OS: runtime.GOOS, ARCH: runtime.GOARCH}
+var Env = &EnvResult{
+	AppID: "singbox-webui", AppName: "singbox-webui", AppVersion: "v1.29.0-webui.1",
+	OS: runtime.GOOS, ARCH: runtime.GOARCH, Args: []string{}, LaunchArgs: []string{},
+}
 
 func CreateWebApp(ctx context.Context, base string) (*App, error) {
 	path, err := filepath.Abs(base)
@@ -19,7 +22,8 @@ func CreateWebApp(ctx context.Context, base string) (*App, error) {
 		return nil, err
 	}
 	Env.BasePath = filepath.ToSlash(path)
-	if err = os.MkdirAll(filepath.Join(path, "data", "sing-box"), 0755); err != nil {
+	Env.DataDir = filepath.ToSlash(filepath.Join(path, "data"))
+	if err = os.MkdirAll(filepath.Join(Env.DataDir, "sing-box"), 0755); err != nil {
 		return nil, err
 	}
 	Env.IsPrivileged, _ = IsPrivileged()

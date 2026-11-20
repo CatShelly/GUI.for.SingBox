@@ -43,7 +43,7 @@ type Core struct {
 }
 
 func NewCore(app *bridge.App, executable string) *Core {
-	return &Core{app: app, executable: executable, dir: filepath.Join(bridge.Env.BasePath, "data", "sing-box")}
+	return &Core{app: app, executable: executable, dir: filepath.Join(bridge.Env.DataDir, "sing-box")}
 }
 func (c *Core) path(alpha bool) string {
 	if c.executable != "" {

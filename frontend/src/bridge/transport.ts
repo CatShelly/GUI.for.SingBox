@@ -11,4 +11,4 @@ export async function api<T = any>(path: string, body?: unknown): Promise<T> {
   if (!response.ok) throw new Error(data.message || `HTTP ${response.status}`)
   return data
 }
-export const rpc = (name: string, args: unknown[]) => api('/rpc/' + name, args)
+export const rpc = <T = any>(name: string, args: unknown[]) => api<T>('/rpc/' + name, args)

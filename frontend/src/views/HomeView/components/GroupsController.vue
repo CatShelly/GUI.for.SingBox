@@ -116,6 +116,7 @@ const handleGroupDelay = async (group: string) => {
     let index = 0
     let success = 0
     let failure = 0
+    const requests = new AbortController()
 
     const delayTest = async (proxy: string) => {
       index += 1
@@ -127,12 +128,15 @@ const handleGroupDelay = async (group: string) => {
           encodeURIComponent(proxy),
           appSettings.app.kernel.testUrl || DefaultTestURL,
           appSettings.app.kernel.testTimeout || DefaultTestTimeout,
+          requests.signal,
         )
         success += 1
         _proxy && _proxy.history.push({ delay })
       } catch {
-        failure += 1
-        _proxy && _proxy.history.push({ delay: 0 })
+        if (!requests.signal.aborted) {
+          failure += 1
+          _proxy && _proxy.history.push({ delay: 0 })
+        }
       }
       update(`Testing... ${index} / ${_group.all.length}, success: ${success} failure: ${failure}`)
       loadingSet.value.delete(proxy)
@@ -150,6 +154,7 @@ const handleGroupDelay = async (group: string) => {
       success: msgSuccess,
     } = message.info('Testing...', 99999, () => {
       controller.cancel()
+      requests.abort()
       message.warn('common.canceled')
     })
     await run()

@@ -1,5 +1,7 @@
+import DOMPurify, { type Config } from 'dompurify'
 import { stringify } from 'yaml'
 
+import { rpc } from '@/bridge/transport'
 import { OS } from '@/enums/app'
 import { useAppSettingsStore } from '@/stores'
 import appDts from '@/types/app.d.ts?raw'
@@ -267,7 +269,19 @@ export const transformRequestUrl = (url: string) => {
   return url
 }
 
-export const getAutoStartConfiguration = (os: App.OS, appPath: string, delay = 30) => {
+const escapeXml = (s: string) => s.replace(/[&<>]/g, (c) => `&#${c.charCodeAt(0)};`)
+
+export const quoteWindowsArg = (arg: string) => {
+  if (arg && !/[\s"]/.test(arg)) return arg
+  return `"${arg.replace(/(\\*)"/g, '$1$1\\"').replace(/(\\+)$/, '$1$1')}"`
+}
+
+export const getAutoStartConfiguration = (
+  os: App.OS,
+  appPath: string,
+  args: string[],
+  delay = 30,
+) => {
   if (os === OS.Windows) {
     const xml = /*xml*/ `<?xml version="1.0" encoding="UTF-16"?>
 <Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
@@ -308,17 +322,18 @@ export const getAutoStartConfiguration = (os: App.OS, appPath: string, delay = 3
   </Settings>
   <Actions Context="Author">
     <Exec>
-      <Command>${appPath}</Command>
-      <Arguments>tasksch</Arguments>
+      <Command>${escapeXml(appPath)}</Command>
+      <Arguments>${escapeXml(args.map(quoteWindowsArg).join(' '))}</Arguments>
     </Exec>
   </Actions>
 </Task>`
     return xml
   }
   if (os === OS.Linux) {
+    const exec = [appPath, ...args].map((arg) => `"${arg.replace(/["`$\\]/g, '\\$&')}"`).join(' ')
     const desktop = `[Desktop Entry]
 Type=Application
-Exec=${appPath} tasksch
+Exec=${exec.replace(/[%\\]/g, '$&$&')}
 Name=${APP_TITLE}`
     return desktop
   }
@@ -332,10 +347,7 @@ Name=${APP_TITLE}`
     <string>${APP_TITLE}</string>
     <key>ProgramArguments</key>
     <array>
-        <string>/usr/bin/open</string>
-        <string>${appPath}</string>
-        <string>--args</string>
-        <string>tasksch</string>
+${['/usr/bin/open', appPath, '--args', ...args].map((arg) => `        <string>${escapeXml(arg)}</string>`).join('\n')}
     </array>
     <key>RunAtLoad</key>
     <true/>
@@ -428,6 +440,15 @@ export const base64UrlEncode = (str: string): string => {
   return base64Encode(str).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
 }
 
+export const utf16leBase64Encode = (str: string): string => {
+  let bytes = '\xff\xfe'
+  for (let i = 0; i < str.length; i++) {
+    const code = str.charCodeAt(i)
+    bytes += String.fromCharCode(code & 0xff, code >> 8)
+  }
+  return btoa(bytes)
+}
+
 export const base64Encode = (str: string): string => {
   const bytes = new TextEncoder().encode(str)
   const len = bytes.length
@@ -502,4 +523,47 @@ export const buildSmartRegExp = (pattern: string, flags = '') => {
 
   regexCache.set(key, r)
   return r
+}
+
+/**
+ * Default policy for rendering untrusted HTML (subscriptions, remote changelogs, plugins).
+ * Remove markup that can execute code, submit data or alter the document base.
+ */
+export const HTML_SANITIZE_CONFIG: Config = {
+  USE_PROFILES: { html: true },
+  FORBID_TAGS: [
+    'style',
+    'script',
+    'iframe',
+    'frame',
+    'frameset',
+    'object',
+    'embed',
+    'form',
+    'input',
+    'button',
+    'textarea',
+    'select',
+    'option',
+    'link',
+    'meta',
+    'base',
+  ],
+  FORBID_ATTR: ['srcset', 'action', 'formaction', 'xlink:href'],
+  ALLOW_DATA_ATTR: false,
+}
+
+/**
+ * Sanitize an HTML string before assigning it to innerHTML / v-html.
+ */
+export const sanitizeHtml = (html: string, config: Config = HTML_SANITIZE_CONFIG): string => {
+  return DOMPurify.sanitize(html, config)
+}
+
+export const sha256 = async (text: string) => {
+  if (!globalThis.crypto?.subtle) return rpc<string>('TextSHA256', [text])
+
+  const data = new TextEncoder().encode(text)
+  const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', data))
+  return Array.from(digest, (b) => b.toString(16).padStart(2, '0')).join('')
 }

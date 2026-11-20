@@ -40,7 +40,7 @@ watch(
 )
 </script>
 <template>
-  <div class="flex items-center gap-8 mx-8 overflow-hidden">
+  <div class="flex items-center gap-4 mx-8 overflow-hidden">
     <component
       :is="action.component"
       v-for="action in computedActions"

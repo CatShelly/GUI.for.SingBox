@@ -33,14 +33,15 @@ export class Request {
 
   private request = async <T>(
     url: string,
-    options: { method: Method; body?: Record<string, any> },
+    options: { method: Method; body?: Record<string, any>; signal?: AbortSignal },
   ) => {
     this.beforeRequest()
 
+    const timeout = AbortSignal.timeout(this.timeout)
     const init: RequestInit = {
       method: options.method,
       headers: { 'X-WebUI-Request': '1', 'Content-Type': 'application/json' },
-      signal: AbortSignal.timeout(this.timeout),
+      signal: options.signal ? AbortSignal.any([options.signal, timeout]) : timeout,
     }
 
     if (this.base) {
@@ -86,7 +87,8 @@ export class Request {
     return json as T
   }
 
-  public get = <T>(url: string, body = {}) => this.request<T>(url, { method: 'GET', body })
+  public get = <T>(url: string, body = {}, signal?: AbortSignal) =>
+    this.request<T>(url, { method: 'GET', body, signal })
   public post = <T>(url: string, body = {}) => this.request<T>(url, { method: 'POST', body })
   public put = <T>(url: string, body = {}) => this.request<T>(url, { method: 'PUT', body })
   public patch = <T>(url: string, body = {}) => this.request<T>(url, { method: 'PATCH', body })

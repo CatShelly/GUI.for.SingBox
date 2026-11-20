@@ -218,6 +218,7 @@ const handleMinimize = () => {
 }
 
 const tabId = sampleID()
+const titleId = `modal-title-${tabId}`
 const tabEligible = computed(() => props.sideTab ?? props.toolbar.maximize !== false)
 const isSide = computed(() => tabEligible.value && appStore.modalSplitActive)
 const visible = computed(
@@ -228,7 +229,7 @@ const tab = markRaw({
   title: () => props.title || 'common.modalList',
   activate: () => {
     appStore.activeModalTab = tabId
-    modalZindex.value = ++appStore.modalZIndexCounter
+    if (appStore.modalSplitActive) modalZindex.value = ++appStore.modalZIndexCounter
     const idx = appStore.modalStack.indexOf(closeFn)
     if (idx !== -1) appStore.modalStack.splice(idx, 1)
     appStore.modalStack.push(closeFn)
@@ -303,9 +304,12 @@ defineExpose({ handleCancel })
         @click.self="onMaskClick"
       >
         <div
+          :aria-labelledby="title ? titleId : undefined"
           :style="contentStyle"
           :class="props.class"
+          aria-modal="true"
           class="gui-modal-modal transition duration-200 flex flex-col rounded-8 shadow"
+          role="dialog"
         >
           <div
             v-if="title || slots.title || slots.toolbar"
@@ -313,7 +317,7 @@ defineExpose({ handleCancel })
             @dblclick.self="!isSide && toggleMaximize()"
           >
             <slot name="title">
-              <div v-if="title" class="font-bold">{{ $t(title) }}</div>
+              <div v-if="title" :id="titleId" class="font-bold">{{ $t(title) }}</div>
             </slot>
             <div class="ml-auto">
               <slot name="toolbar"></slot>
@@ -388,6 +392,11 @@ defineExpose({ handleCancel })
 .modal-tab-enter-from .gui-modal-modal > * {
   opacity: 0;
   transform: translateY(6px);
+}
+
+.modal-tab-leave-active {
+  visibility: hidden;
+  pointer-events: none;
 }
 
 .modal-enter-active .gui-modal-modal,

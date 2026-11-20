@@ -10,7 +10,7 @@ export interface Props {
   autoSize?: boolean
   placeholder?: string
   type?: 'number' | 'text' | 'code'
-  lang?: 'yaml' | 'json' | 'javascript'
+  lang?: 'yaml' | 'json' | 'javascript' | 'css'
   size?: 'default' | 'small'
   editable?: boolean
   clearable?: boolean
@@ -158,6 +158,7 @@ defineExpose({
       v-if="editable && !showEdit"
       class="w-full overflow-hidden whitespace-nowrap text-ellipsis"
       :class="{ 'italic pr-4': !modelValue }"
+      role="button"
       @click="showInput"
     >
       <slot name="editable" v-bind="{ value: modelValue }">

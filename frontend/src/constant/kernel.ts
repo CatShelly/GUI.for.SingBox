@@ -3,6 +3,7 @@ import {
   Inbound,
   Outbound,
   TunStack,
+  TunDnsMode,
   LogLevel,
   RuleType,
   RulesetFormat,
@@ -196,6 +197,13 @@ export const TunStackOptions = [
   { label: 'kernel.inbounds.tun.mixed', value: TunStack.Mixed },
 ]
 
+export const TunDnsModeOptions = [
+  { label: 'kernel.inbounds.tun.dns_mode_default', value: TunDnsMode.Default },
+  { label: 'kernel.inbounds.tun.dns_mode_disabled', value: TunDnsMode.Disabled },
+  { label: 'kernel.inbounds.tun.dns_mode_native', value: TunDnsMode.Native },
+  { label: 'kernel.inbounds.tun.dns_mode_hijack', value: TunDnsMode.Hijack },
+]
+
 export const NetworkOptions = [
   { label: 'TCP', value: Network.Tcp },
   { label: 'UDP', value: Network.Udp },
@@ -318,15 +326,9 @@ export const DefaultConnections = () => {
 }
 
 export const DefaultCoreConfig = () => {
+  const workDir = CoreWorkingDirectory.replace('data', '$APP_DATA_PATH')
   return {
     env: {},
-    args: [
-      'run',
-      '--disable-color',
-      '-c',
-      '$APP_BASE_PATH/$CORE_BASE_PATH/config.json',
-      '-D',
-      '$APP_BASE_PATH/$CORE_BASE_PATH',
-    ],
+    args: ['run', '--disable-color', '-c', workDir + '/config.json', '-D', workDir],
   }
 }

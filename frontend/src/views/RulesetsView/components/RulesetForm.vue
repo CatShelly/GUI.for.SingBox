@@ -162,7 +162,7 @@ defineExpose({ modalSlots })
           allow-paste
           :placeholder="
             ruleset.type === 'Http'
-              ? 'http(s)://'
+              ? 'http(s):/' + '/'
               : 'data/local/{filename}.' +
                 (ruleset.format === RulesetFormat.Binary ? 'srs' : 'json')
           "

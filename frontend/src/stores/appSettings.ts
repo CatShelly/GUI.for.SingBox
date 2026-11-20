@@ -35,7 +35,14 @@ import {
 } from '@/enums/app'
 import i18n, { loadLocale } from '@/lang'
 import { useAppStore, useEnvStore } from '@/stores'
-import { debounce, updateTrayAndMenus, ignoredError, deepClone, message } from '@/utils'
+import {
+  debounce,
+  updateTrayAndMenus,
+  ignoredError,
+  deepClone,
+  message,
+  migrateAppSettings,
+} from '@/utils'
 
 export const useAppSettingsStore = defineStore('app-settings', () => {
   const appStore = useAppStore()
@@ -118,73 +125,21 @@ export const useAppSettingsStore = defineStore('app-settings', () => {
 
   const setupAppSettings = async () => {
     const data = await ignoredError(ReadFile, UserFilePath)
-    let settings: App.AppSettings
-    if (data) {
-      const saved = parse(data) || {}
-      settings = {
-        ...deepClone(app.value),
-        ...saved,
-        kernel: { ...deepClone(app.value.kernel), ...saved.kernel },
-      }
-    } else {
-      settings = deepClone(app.value)
+    const saved = data ? parse(data) || {} : {}
+    const defaults = deepClone(app.value)
+    const settings: App.AppSettings = {
+      ...defaults,
+      systemProxyServices: envStore.env.os === 'darwin' ? ['Ethernet', 'Wi-Fi'] : [],
+      ...saved,
+      kernel: { ...defaults.kernel, ...saved.kernel },
     }
 
     await appStore.loadLocales(false, false)
 
-    if (!settings.kernel.main) {
-      settings.kernel.main = DefaultCoreConfig()
-      settings.kernel.alpha = DefaultCoreConfig()
-    }
+    settings.kernel.main ??= DefaultCoreConfig()
+    settings.kernel.alpha ??= DefaultCoreConfig()
     if (!settings.proxyBypassList) {
       settings.proxyBypassList = (await ignoredError(GetSystemProxyBypass)) || ''
-    }
-    if ('darwinSystemProxyServices' in settings) {
-      settings.systemProxyServices = settings.darwinSystemProxyServices as string[]
-      delete settings.darwinSystemProxyServices
-    }
-    const defaultSystemProxyServices = envStore.env.os === 'darwin' ? ['Ethernet', 'Wi-Fi'] : []
-    if (!data) {
-      settings.systemProxyServices = defaultSystemProxyServices
-    } else if (!settings.systemProxyServices) {
-      settings.systemProxyServices = defaultSystemProxyServices
-    } else if (
-      envStore.env.os === 'linux' &&
-      settings.systemProxyServices.join(',') === 'Ethernet,Wi-Fi'
-    ) {
-      settings.systemProxyServices = defaultSystemProxyServices
-    }
-    if (settings.autoSetSystemDNS === undefined) {
-      settings.autoSetSystemDNS = false
-    }
-    if (settings.systemProxyDNS === undefined) {
-      settings.systemProxyDNS = ''
-    }
-    if (settings.systemDefaultDNS === undefined) {
-      settings.systemDefaultDNS = ''
-    }
-    if (!settings.requestProxyMode) {
-      settings.requestProxyMode = RequestProxyMode.System
-    }
-    if (settings.customProxy === undefined) {
-      settings.customProxy = ''
-    }
-    if (settings.githubDownloadAcceleration === undefined) {
-      settings.githubDownloadAcceleration = false
-    }
-    if (settings.githubDownloadMirror === undefined) {
-      settings.githubDownloadMirror = ''
-    }
-    if (!settings.plugins) {
-      settings.plugins = {
-        sources: DefaultPluginHubSources(),
-      }
-    }
-    if (settings.debugUsePointer === undefined) {
-      settings.debugUsePointer = false
-    }
-    if (settings.debugModalSideBySide === undefined) {
-      settings.debugModalSideBySide = false
     }
 
     settings.autoSetSystemProxy = false
@@ -196,6 +151,8 @@ export const useAppSettingsStore = defineStore('app-settings', () => {
     settings.addGroupToMenu = false
     settings.rollingRelease = false
     settings.pages = settings.pages.filter((p) => p !== 'ScheduledTasks')
+    await migrateAppSettings(settings, () => WriteFile(UserFilePath, stringify(settings)))
+
     app.value = settings
     latestUserSettings = stringify(app.value)
   }
@@ -288,9 +245,12 @@ export const useAppSettingsStore = defineStore('app-settings', () => {
   })
   const setAppTheme = (theme: Extract<App.Theme, 'light' | 'dark'>) => {
     if (document.startViewTransition) {
-      document.startViewTransition(() => {
+      const transition = document.startViewTransition(() => {
         document.body.setAttribute('theme-mode', theme)
       })
+      transition.ready.catch(() => {})
+      transition.updateCallbackDone.catch(() => {})
+      transition.finished.catch(() => {})
     } else {
       document.body.setAttribute('theme-mode', theme)
     }

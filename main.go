@@ -38,7 +38,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	passwordFile := filepath.Join(bridge.Env.BasePath, "data", "user.yaml")
+	passwordFile := filepath.Join(bridge.Env.DataDir, "user.yaml")
 	password, generated, err := web.LoadPassword(passwordFile)
 	if err != nil {
 		log.Fatal(err)

@@ -1,7 +1,5 @@
 import { Request } from '@/api/request'
 import { WebSockets } from '@/api/websocket'
-import { useProfilesStore } from '@/stores'
-import { formatProxyHost, normalizeProxyHost } from '@/utils'
 
 import type {
   CoreApiConfig,
@@ -28,37 +26,6 @@ export enum Api {
   Connections = '/connections',
   Traffic = '/traffic',
   Logs = '/logs',
-}
-
-const resolveController = (controller: string, defaultPort: number) => {
-  const trimmed = controller.trim()
-  if (!trimmed) {
-    return {
-      host: '127.0.0.1',
-      port: defaultPort,
-    }
-  }
-
-  if (trimmed.startsWith('[')) {
-    const match = trimmed.match(/^\[([^\]]+)\](?::(\d+))?$/)
-    return {
-      host: normalizeProxyHost(match?.[1] || ''),
-      port: Number(match?.[2] || defaultPort),
-    }
-  }
-
-  const separatorIndex = trimmed.lastIndexOf(':')
-  if (separatorIndex === -1) {
-    return {
-      host: normalizeProxyHost(trimmed),
-      port: defaultPort,
-    }
-  }
-
-  return {
-    host: normalizeProxyHost(trimmed.slice(0, separatorIndex).trim()),
-    port: Number(trimmed.slice(separatorIndex + 1)) || defaultPort,
-  }
 }
 
 const setupCoreApi = (protocol: 'http' | 'ws') => {
@@ -117,12 +84,8 @@ export const deleteConnection = (id: string) => request.delete<null>(Api.Connect
 export const useProxy = (group: string, proxy: string) => {
   return request.put<null>(Api.Proxies + '/' + group, { name: proxy })
 }
-export const getProxyDelay = (proxy: string, url: string, timeout: number) => {
-  return request.get<Record<string, number>>(Api.ProxyDelay.replace('{0}', proxy), {
-    url,
-    timeout,
-  })
-}
+export const getProxyDelay = (proxy: string, url: string, timeout: number, signal?: AbortSignal) =>
+  request.get<Record<string, number>>(Api.ProxyDelay.replace('{0}', proxy), { url, timeout }, signal)
 
 // websocket api
 export const onLogs = createCoreWSHandlerRegister('logs')

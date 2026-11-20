@@ -11,16 +11,20 @@ type App struct {
 }
 
 type EnvResult struct {
-	IsStartup    bool   `json:"-"`
-	PreventExit  bool   `json:"-"`
-	FromTaskSch  bool   `json:"-"`
-	WebviewPath  string `json:"-"`
-	AppName      string `json:"appName"`
-	AppVersion   string `json:"appVersion"`
-	BasePath     string `json:"basePath"`
-	OS           string `json:"os"`
-	ARCH         string `json:"arch"`
-	IsPrivileged bool   `json:"isPrivileged"`
+	IsStartup    bool     `json:"-"`
+	PreventExit  bool     `json:"-"`
+	FromTaskSch  bool     `json:"-"`
+	WebviewPath  string   `json:"-"`
+	AppID        string   `json:"appId"`
+	AppName      string   `json:"appName"`
+	AppVersion   string   `json:"appVersion"`
+	BasePath     string   `json:"basePath"`
+	DataDir      string   `json:"dataDir"`
+	Args         []string `json:"args"`
+	LaunchArgs   []string `json:"launchArgs"`
+	OS           string   `json:"os"`
+	ARCH         string   `json:"arch"`
+	IsPrivileged bool     `json:"isPrivileged"`
 }
 
 type RequestOptions struct {

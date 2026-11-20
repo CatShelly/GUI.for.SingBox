@@ -437,6 +437,10 @@ func (a *App) FileExists(path string) FlagResult {
 	return FlagResult{false, err.Error()}
 }
 
+func (a *App) TextSHA256(text string) string {
+	return fmt.Sprintf("%x", sha256.Sum256([]byte(text)))
+}
+
 func (a *App) FileSHA256(path string) FlagResult {
 	log.Printf("FileSHA256: %s", path)
 
